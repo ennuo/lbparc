@@ -21,10 +21,11 @@ module.exports = class Archive {
         this.version = header.readUInt32LE(4);
         const entryCount = header.readUInt32LE(8);
 
-        const hash = read(0x10);
-
-        const entryTable = read(entryCount * 0xC, 1);
+        let entryTable = read(0x10 + (entryCount * 0xC));
+        const hash = entryTable.slice(0, 0x10);
+        entryTable = entryTable.slice(0x10, entryTable.length);
         this.entries = [];
+        
         for (let i = 0; i < entryCount; ++i) {
             let offset = i * 0xC;
             this.entries.push({
