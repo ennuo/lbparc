@@ -1,0 +1,11 @@
+{
+  "name": "lbparc",
+  "description": "A NodeJS program for unpacking the archives from LittleBigPlanet PSP.",
+  "version": "1.0.0",
+  "main": "unpack.js",
+  "author": "ennuo",
+  "license": "ISC",
+  "dependencies": {
+    "lzo": "^0.4.11"
+  }
+}
