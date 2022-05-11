@@ -102,3 +102,11 @@ dist
 
 # TernJS port file
 .tern-port
+
+# Archives
+*.arc
+lbp_archive/
+dlc_003/
+dlc_005/
+patch/
+test.js
