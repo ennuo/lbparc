@@ -1,17 +1,20 @@
 const { readFileSync, existsSync, mkdirSync, writeFileSync } = require('fs');
-const { join } = require('path');
+const { join, dirname } = require('path');
 const { XOR } = require('./xor');
 const { decompress } = require('lzo');
+const paths = require(join(__dirname, 'paths.json'));
+
 module.exports = class Archive {
     version = 1;
     entries = [];
+    #data;
 
     constructor(path) {
         if (!existsSync(path)) return;
-        const archive = readFileSync(path);
+        this.#data = readFileSync(path);
         let offset = 0;
         const read = (size, rounds = 0) => {
-            const buffer = archive.slice(offset, offset + size);
+            const buffer = this.#data .slice(offset, offset + size);
             offset += size;
             return XOR(buffer, rounds);
         }
@@ -36,7 +39,7 @@ module.exports = class Archive {
         }
 
         for (const entry of this.entries) {
-            const data = XOR(archive.slice(entry.offset, entry.offset + entry.size));
+            const data = XOR(this.#data .slice(entry.offset, entry.offset + entry.size));
             entry.data = data.slice(0, data.length - 0x19);
             const info = data.slice(data.length - 0x19, data.length);
             const realSize = info.readUInt32LE(0);
@@ -50,8 +53,14 @@ module.exports = class Archive {
     unpack = path => {
         if (!existsSync(path))
             mkdirSync(path, { recursive: true });
-        for (const entry of this.entries)
-            writeFileSync(join(path, String(entry.UID)), entry.data);
+        for (const entry of this.entries) {
+            const translated = paths[entry.UID] ?? entry.UID;
+            if (paths[entry.UID]) 
+                mkdirSync(join(path, dirname(translated)), { recursive: true })
+            writeFileSync(join(path, String(translated)), entry.data, { recursive: true });
+        }
     }
+
+    save = path => writeFileSync(path + '.arc.dec', this.#data);
 
 }
