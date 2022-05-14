@@ -6,6 +6,7 @@
   "author": "ennuo",
   "license": "ISC",
   "dependencies": {
+    "crc-32": "^1.2.2",
     "lzo": "^0.4.11"
   }
 }
