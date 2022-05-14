@@ -103,10 +103,9 @@ dist
 # TernJS port file
 .tern-port
 
-# Archives
+# Just my testing data
 *.arc
-lbp_archive/
-dlc_003/
-dlc_005/
-patch/
+extracted/
+archives/
+output/
 test.js
