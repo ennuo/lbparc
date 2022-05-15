@@ -107,6 +107,18 @@ class MemoryInputStream {
     }
 
     /**
+     * Reads a signed 32-bit integer from the stream.
+     * @returns {number} - 32-bit signed integer read from the stream
+     */
+    s32 = () => {
+        const value = this.#isLittleEndian ? 
+            this.#data.readInt32LE(this.#offset) : this.#data.readInt32BE(this.#offset);
+        this.#offset += 4;
+        return value;
+    }
+
+
+    /**
      * Reads an unsigned short from the stream.
      * @returns {number} - Unsigned short read from the stream
      */
