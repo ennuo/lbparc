@@ -112,6 +112,8 @@ class Model {
      * @returns {Mesh} Parsed mesh
      */
     static load = data => {
+        const debug = process.env.NODE_ENV == 'development';
+
         const stream = new MemoryInputStream(data);
         const model = new Model();
 
@@ -296,14 +298,16 @@ class Model {
     
             mesh.name = stream.str();
     
-            console.log(`[${i}] Name: ${mesh.name}`);
-            console.log(`Primitive Type: ${toPrimitiveString(primitiveType)}`);
-            if (vertexType != originalVertexType)
-                console.log(`Original Vertex Type: ${toVertexString(originalVertexType)}`);
-            console.log(`Vertex Type: ${toVertexString(vertexType)}`);
-            console.log(`Verts: ${vertexCount}`);
-            console.log(`Morphs: ${morphCount}`);
-            console.log(`Vertex Block Size: 0x${size.toString(16).padStart(8, '0')}\n`);
+            if (debug) {
+                console.log(`[${i}] Name: ${mesh.name}`);
+                console.log(`Primitive Type: ${toPrimitiveString(primitiveType)}`);
+                if (vertexType != originalVertexType)
+                    console.log(`Original Vertex Type: ${toVertexString(originalVertexType)}`);
+                console.log(`Vertex Type: ${toVertexString(vertexType)}`);
+                console.log(`Verts: ${vertexCount}`);
+                console.log(`Morphs: ${morphCount}`);
+                console.log(`Vertex Block Size: 0x${size.toString(16).padStart(8, '0')}\n`);
+            }
     
             stream.forward(0x8 * morphCount);
             model.meshes.push(mesh);
