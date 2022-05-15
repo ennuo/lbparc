@@ -1,10 +1,12 @@
 
-const MemoryInputStream = require('./stream');
+const MemoryInputStream = require('./input');
 const { VertexDecl } = require('./flags');
-const { getVertexCount, getWeightCount } = require('./utils');
+const { getWeightCount } = require('./utils');
 const Archive = require('./archive');
 const Skin = require('./skin');
-
+const Skeleton = require('./skeleton');
+const GLB = require('./glb');
+const MemoryOutputStream = require('./output');
 class VertexData {
     /** 
      * Vertex weights, each vertex can contain up to 8
@@ -65,6 +67,12 @@ class Mesh {
      * @returns {boolean} - Whether or not this mesh contains any morph data.
      */
     get hasMorphs() { return this.streams.length > 1; }
+
+    get morphCount() {
+        if (this.hasMorphs)
+            return this.streams.length - 1;
+        return 0;
+    }
 }
 
 
@@ -98,7 +106,7 @@ class Model {
     skeletons = [];
 
     /**
-     * Skin pose matrices for bones in this model.
+     * Inverse skin pose matrices for bones in this model.
      * @type {(import('./types').m44)[]}
      */
     bones = [];
@@ -110,7 +118,7 @@ class Model {
 
     /**
      * Loads a mesh from a data source.
-     * @param {MemoryInputStream|string|Buffer} data - Data to load
+     * @param {string|Buffer} data - Data to load
      * @param {Archive} archive - Archive to extract skins, textures, and skeletons.
      * @returns {Mesh} Parsed mesh
      */
@@ -142,7 +150,11 @@ class Model {
                 buffer: stream.bytearray(),
                 name: stream.str()
             });
-            stream.forward(0x8 * meshes[i].morphCount);
+
+            for (let j = 0; j < meshes[i].morphCount; ++j) {
+                const morphID = stream.u32();
+                const morphIndex = stream.u32();
+            }
         }
 
         // No idea what this is, texturing? no idea
@@ -154,7 +166,7 @@ class Model {
     
         const skeletonCount = stream.u32();
         for (let i = 0; i < skeletonCount; ++i)
-            model.skeletons.push(stream.str());
+            model.skeletons.push(Skeleton.load(archive.extract(stream.str())));
     
         const boneCount = stream.u32();
         for (let i = 0; i < boneCount; ++i)
@@ -221,8 +233,10 @@ class Model {
                         const weightCount = getWeightCount(info.vertexType);
                         switch (info.vertexType & VertexDecl.GU_WEIGHT_BITS) {
                             case VertexDecl.GU_WEIGHT_8BIT: {
+                                const weights = [];
                                 for (let w = 0; w < weightCount; ++w)
-                                    stream.forward(0x1);
+                                    weights.push(stream.s8() / 0x7f);
+                                data.weights.push(weights);
                                 break;
                             }
                             case 0: break;
@@ -331,6 +345,157 @@ class Model {
         }
 
         return model;
+    }
+
+    /**
+     * Converts this model into a GLB file.
+     * @returns {Buffer} Built GLB file binary
+     */
+    toGLB = () => {
+        const glb = new GLB();
+        let buffer = Buffer.alloc(0);
+        let meshIndex = 0;
+        for (const mesh of this.meshes) {
+            const vertexHandle = new MemoryOutputStream(mesh.numVerts * 0xC);
+            const texHandle = new MemoryOutputStream(mesh.numVerts * 0x8);
+            const normalHandle = new MemoryOutputStream(mesh.numVerts * 0xC);
+
+            for (let i = 0; i < mesh.numVerts; ++i) {
+                vertexHandle.vector(mesh.streams[0].positions[i]);
+                texHandle.vector(mesh.streams[0].texCoords[i]);
+                normalHandle.vector(mesh.streams[0].normals[i]);
+            }
+
+            glb.createBufferView('POSITION', buffer.length, vertexHandle.size);
+            buffer = Buffer.concat([buffer, vertexHandle.buffer]);
+            glb.createBufferView('TEXCOORD', buffer.length, texHandle.size);
+            buffer = Buffer.concat([buffer, texHandle.buffer]);
+            glb.createBufferView('NORMAL', buffer.length, normalHandle.size);
+            buffer = Buffer.concat([buffer, normalHandle.buffer]);
+
+            const indexHandle = new MemoryOutputStream(mesh.indices.length * 0x2);
+            for (const index of mesh.indices)
+                indexHandle.u16(index);
+            glb.createBufferView('INDEX', buffer.length, indexHandle.size);
+            buffer = Buffer.concat([buffer, indexHandle.buffer]);
+
+            if (mesh.hasMorphs) {
+                for (let i = 0; i < mesh.morphCount; ++i) {
+                    const morph = mesh.streams[i + 1];
+                    const morphHandle = new MemoryOutputStream(0xC * mesh.numVerts);
+                    for (let j = 0; j < mesh.numVerts; ++j)
+                        morphHandle.vector(morph.positions[j]);
+                    glb.createBufferView(`MORPHS_${i}`, buffer.length, morphHandle.size);
+                    buffer = Buffer.concat([buffer, morphHandle.buffer]);
+                }   
+            }
+
+            if (this.skeletons.length != 0) {
+                const skin = this.skins[meshIndex];
+                const jointStream = new MemoryOutputStream(0x10 * mesh.numVerts);
+                for (const data of skin.skins) {
+                    const fixed = [0, 0, 0, 0];
+                    for (let b = 0; b < data.numBones; ++b)
+                        fixed[b] = data.bones[b];
+                    for (let i = 0; i < data.numVerts; ++i)
+                        for (const b of fixed) jointStream.u32(b);
+                }
+                glb.createBufferView('JOINTS', buffer.length, jointStream.size);
+                buffer = Buffer.concat([buffer, jointStream.buffer]);
+                
+                const weightStream = new MemoryOutputStream(0x10 * mesh.numVerts);
+                for (const weight of mesh.streams[0].weights) {
+                    const fixed = [0, 0, 0, 0];
+                    for (let w = 0; w < weight.length; ++w) 
+                        fixed[w] = weight[w];
+                    weightStream.vector(fixed);
+                }
+                glb.createBufferView('WEIGHTS', buffer.length, weightStream.size);
+                buffer = Buffer.concat([buffer, weightStream.buffer]);
+            }
+
+            const glMesh = glb.createMesh(mesh.name);
+            glMesh.primitives.push({
+                attributes: {
+                    POSITION: glb.createAccessor('POSITION', GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC3'),
+                    TEXCOORD_0: glb.createAccessor('TEXCOORD', GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC2'),
+                    NORMAL: glb.createAccessor('NORMAL', GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC3'),
+                    JOINTS_0: (() => {
+                        if (this.skeletons.length == 0) return undefined;
+                        return glb.createAccessor('JOINTS', GLB.ComponentType.UNSIGNED_INT, mesh.numVerts, 'VEC4');
+                    })(),
+                    WEIGHTS_0: (() => {
+                        if (this.skeletons.length == 0) return undefined;
+                        return glb.createAccessor('WEIGHTS', GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC4');
+                    })()
+                },
+                targets: (() => {
+                    const targets = [];
+                    for (let i = 0; i < mesh.morphCount; ++i)
+                        targets.push({
+                            POSITION: glb.createAccessor(`MORPHS_${i}`, GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC3')
+                        })
+                    return targets;
+                })(),
+                indices: glb.createAccessor('INDEX', GLB.ComponentType.UNSIGNED_SHORT, mesh.indices.length, 'SCALAR')
+            })
+
+            glb.pushNode({
+                name: mesh.name,
+                mesh: meshIndex,
+                skin: (this.skeletons.length != 0) ? 0 : undefined
+            });
+
+            meshIndex++;
+        }
+
+        if (this.skeletons.length != 0) {
+            const matrixHandle = new MemoryOutputStream(0x40 * this.bones.length);
+            for (const bone of this.bones) 
+                matrixHandle.vector(bone);
+            glb.createBufferView('MATRIX', buffer.length, matrixHandle.size);
+            buffer = Buffer.concat([buffer, matrixHandle.buffer]);
+
+            const skin = { 
+                joints: [],
+                inverseBindMatrices: glb.createAccessor('MATRIX', GLB.ComponentType.FLOAT, this.bones.length, 'MAT4')
+            };
+
+            let start = glb.nodes.length;
+            for (let i = 0; i < this.bones.length; ++i)
+                skin.joints.push(start + i);
+
+            const bones = this.skeletons[0].bones;
+
+            const getChildren = parent => {
+                const children = [];
+                for (const bone of bones)
+                    if (bone.parent == parent.index)
+                        children.push(bone);
+                return children;
+            }
+
+            const createChildren = bone => {
+                const node = {
+                    name: `bone_${bone.ID}`,
+                    ...bone.transform,
+                    children: []
+                };
+                let index = glb.pushNode(node);
+                for (const child of getChildren(bone))
+                    node.children.push(createChildren(child));
+                return index;
+            }
+
+            for (const bone of bones)
+                if (bone.parent == -1)
+                    createChildren(bone);
+
+            glb.skins = [skin];
+        }
+
+        glb.setBuffer(buffer);
+        return glb.build();
     }
 
     /**

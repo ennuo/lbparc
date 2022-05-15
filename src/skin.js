@@ -1,4 +1,4 @@
-const MemoryInputStream = require('./stream');
+const MemoryInputStream = require('./input');
 
 /**
  * Resource that controls which bones influence
@@ -10,6 +10,7 @@ class Skin {
      * @type {object}
      * @property {number} vertexType - Flags for vertex block
      * @property {number} numVerts - Number of verts in this skin
+     * @property {number} numBones - Number of bones that influence these vertices
      * @property {number[]} bones - 4 bones that influence these vertices
      */
 
@@ -18,8 +19,8 @@ class Skin {
 
     /**
      * Loads a skin from a data source.
-     * @param {MemoryInputStream|string|Buffer} data - Data to load
-     * @returns {Skin} Parsed skin
+     * @param {string|Buffer} data - Data to load
+     * @returns {Skin} - Parsed skin
      */
     static load = data => {
         const stream = new MemoryInputStream(data);
@@ -28,12 +29,13 @@ class Skin {
         const count = stream.u32();
         for (let i = 0; i < count; ++i) {
             const [unk1, unk2] = [stream.u32(), stream.u32()];
-            const [vertexType, numVerts, boneCount] =
+            const [vertexType, numVerts, numBones] =
                 [stream.u32(), stream.u32(), stream.u32()];
 
             skin.skins.push({
                 vertexType,
                 numVerts,
+                numBones,
                 bones: [stream.s32(), stream.s32(), stream.s32(), stream.s32()]
             })
         }

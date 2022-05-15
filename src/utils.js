@@ -1,6 +1,10 @@
 const { VertexDecl } = require('./flags');
-
 module.exports = {
+    /**
+     * Gets the name of primitive type integer.
+     * @param {number} type - Primitive type 
+     * @returns {string} - Primitive type name
+     */
     toPrimitiveString: type => {
         switch (type) {
             case 0: return 'POINTS';
@@ -13,6 +17,12 @@ module.exports = {
         }
         return 'INVALID';
     },
+
+    /**
+     * Gets a list of vertex flags from vertex type integer.
+     * @param {number} type - Vertex type
+     * @returns {string} - String of vertex flags used
+     */
     toVertexString: type => {
         const types = [];
     
@@ -47,6 +57,11 @@ module.exports = {
 
         return types.join(' | ');
     },
+    /**
+     * Gets number of weights in vertex block from type
+     * @param {number} type - Vertex type
+     * @returns {number} - Number of weights
+     */
     getWeightCount: type => {
         type = type & VertexDecl.GU_WEIGHTS_BITS;
         for (let i = 1; i <= 8; ++i)
@@ -54,6 +69,12 @@ module.exports = {
                 return i;
         return 0;
     },
+
+    /**
+     * Gets number of vertices in vertex block from type
+     * @param {number} type - Vertex type
+     * @returns {number} - Number of vertices
+     */
     getVertexCount: type => {
         type = type & VertexDecl.GU_VERTICES_BITS;
         for (let i = 1; i <= 8; ++i)

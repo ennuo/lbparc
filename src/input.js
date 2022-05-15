@@ -5,7 +5,7 @@ class MemoryInputStream {
     /**
      * @type {Buffer} Underlying data source carried by this stream.
      */
-    #data;
+    #buffer;
 
     /**
      * @type {boolean} Whether or not this stream is reading in little endian.
@@ -27,9 +27,9 @@ class MemoryInputStream {
         if (typeof input === 'string') {
             if (!existsSync(input))
                 throw new Error(`File at location ${input} does not exist!`);
-            this.#data = readFileSync(input);
+            this.#buffer = readFileSync(input);
         } else if (Buffer.isBuffer(input))
-            this.#data = input;
+            this.#buffer = input;
     }
 
     /**
@@ -55,7 +55,7 @@ class MemoryInputStream {
      * @returns {string} - String read from the stream
      */
     str = () => {
-        const value = this.bytes(this.#data.indexOf('\0', this.#offset) - this.#offset).toString('utf-8');
+        const value = this.bytes(this.#buffer.indexOf('\0', this.#offset) - this.#offset).toString('utf-8');
         this.#offset++; // Skip past null terminator
         return value;
     }
@@ -71,7 +71,7 @@ class MemoryInputStream {
      * @param {number} size - Number of bytes to read
      * @returns {Buffer} - Bytes read from the stream
      */
-    bytes = size => this.#data.slice(this.#offset, this.#offset += size);
+    bytes = size => this.#buffer.slice(this.#offset, this.#offset += size);
 
     /**
      * Reads a 32-bit floating point number from the stream.
@@ -79,7 +79,7 @@ class MemoryInputStream {
      */
     f32 = () => {
         const value = this.#isLittleEndian ? 
-            this.#data.readFloatLE(this.#offset) : this.#data.readFloatBE(this.#offset);
+            this.#buffer.readFloatLE(this.#offset) : this.#buffer.readFloatBE(this.#offset);
         this.#offset += 4;
         return value;
     }
@@ -101,7 +101,7 @@ class MemoryInputStream {
      */
     u32 = () => {
         const value = this.#isLittleEndian ? 
-            this.#data.readUint32LE(this.#offset) : this.#data.readUint32BE(this.#offset);
+            this.#buffer.readUint32LE(this.#offset) : this.#buffer.readUint32BE(this.#offset);
         this.#offset += 4;
         return value;
     }
@@ -112,7 +112,7 @@ class MemoryInputStream {
      */
     s32 = () => {
         const value = this.#isLittleEndian ? 
-            this.#data.readInt32LE(this.#offset) : this.#data.readInt32BE(this.#offset);
+            this.#buffer.readInt32LE(this.#offset) : this.#buffer.readInt32BE(this.#offset);
         this.#offset += 4;
         return value;
     }
@@ -124,7 +124,7 @@ class MemoryInputStream {
      */
     u16 = () => {
         const value = this.#isLittleEndian ? 
-            this.#data.readUint16LE(this.#offset) : this.#data.readUint16BE(this.#offset);
+            this.#buffer.readUint16LE(this.#offset) : this.#buffer.readUint16BE(this.#offset);
         this.#offset += 2;
         return value;
     }
@@ -135,7 +135,7 @@ class MemoryInputStream {
      */
     s16 = () => {
         const value = this.#isLittleEndian ? 
-            this.#data.readInt16LE(this.#offset) : this.#data.readInt16BE(this.#offset);
+            this.#buffer.readInt16LE(this.#offset) : this.#buffer.readInt16BE(this.#offset);
         this.#offset += 2;
         return value;
     }
@@ -144,13 +144,13 @@ class MemoryInputStream {
      * Reads an unsigned byte from the stream.
      * @returns {number} - Unsigned byte read from the stream
      */
-    u8 = () => this.#data[this.#offset++];
+    u8 = () => this.#buffer[this.#offset++];
 
     /**
      * Reads a signed byte from the stream.
      * @returns {number} - Signed byte read from the stream
      */
-    s8 = () => this.#data.readInt8(this.#offset++);
+    s8 = () => this.#buffer.readInt8(this.#offset++);
 
     /**
      * @returns {number} - Current offset in the stream.
