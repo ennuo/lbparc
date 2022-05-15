@@ -46,5 +46,19 @@ module.exports = {
         }
 
         return types.join(' | ');
+    },
+    getWeightCount: type => {
+        type = type & VertexDecl.GU_WEIGHTS_BITS;
+        for (let i = 1; i <= 8; ++i)
+            if (type == VertexDecl.GU_WEIGHTS(i))
+                return i;
+        return 0;
+    },
+    getVertexCount: type => {
+        type = type & VertexDecl.GU_VERTICES_BITS;
+        for (let i = 1; i <= 8; ++i)
+            if (type == VertexDecl.GU_VERTICES(i))
+                return i;
+        return 0;
     }
 }
