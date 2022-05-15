@@ -32,14 +32,14 @@ module.exports = {
         if (type & VertexDecl.GU_INDEX_BITS) types.push(find(type & VertexDecl.GU_INDEX_BITS));
         if (type & VertexDecl.GU_VERTICES_BITS) {
             for (let i = 1; i <= 8; ++i)
-                if ((type & VertexDecl.GU_VERTICES_BITS) == GU_VERTICES(i)) {
+                if ((type & VertexDecl.GU_VERTICES_BITS) == VertexDecl.GU_VERTICES(i)) {
                     types.push(`GU_VERTEX_` + i);
                     break;
                 }
         }
         if (type & VertexDecl.GU_WEIGHTS_BITS) {
             for (let i = 1; i <= 8; ++i)
-                if ((type & VertexDecl.GU_WEIGHTS_BITS) == GU_WEIGHTS(i)) {
+                if ((type & VertexDecl.GU_WEIGHTS_BITS) == VertexDecl.GU_WEIGHTS(i)) {
                     types.push(`GU_WEIGHTS_` + i);
                     break;
                 }
