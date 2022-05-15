@@ -1,7 +1,9 @@
 
 const MemoryInputStream = require('./stream');
 const { VertexDecl } = require('./flags');
-const { toPrimitiveString, toVertexString } = require('./utils');
+const { getVertexCount, getWeightCount } = require('./utils');
+const Archive = require('./archive');
+const Skin = require('./skin');
 
 class VertexData {
     /** 
@@ -102,19 +104,20 @@ class Model {
     bones = [];
 
     /**
-     * @type {string[]} - Skins used by this model
+     * @type {Skin[]} - Skins used by this model
      */
     skins = [];
 
     /**
      * Loads a mesh from a data source.
      * @param {MemoryInputStream|string|Buffer} data - Data to load
+     * @param {Archive} archive - Archive to extract skins, textures, and skeletons.
      * @returns {Mesh} Parsed mesh
      */
-    static load = data => {
-        const debug = process.env.NODE_ENV == 'development';
+    static load = (data, archive) => {
+        if (!archive) throw new Error('Can\'t process model without archive!');
 
-        const stream = new MemoryInputStream(data);
+        let stream = new MemoryInputStream(data);
         const model = new Model();
 
         const textureCount = stream.u32();
@@ -122,197 +125,26 @@ class Model {
             model.textures.push(stream.str());
         
         const meshCount = stream.u32();
+
+        // We'll actually parse and store the data globally later,
+        // we can't parse it right now because we need the skin if it's
+        // a  skinned mesh.
+        const meshes = [];
         for (let i = 0; i < meshCount; ++i) {
-            const mesh = new Mesh();
-            
-            let [primitiveType, vertexType, vertexCount, morphCount] = 
-                [stream.u32(), stream.u32(), stream.u32(), stream.u32()];
-
-            // When the type is VertexDecl.GU_WEIGHT_32BITF,
-            // the vertex types of the mesh are actually taken
-            // from the skin, although for the most part, they're
-            // the same, so we can just use this.
-            const originalVertexType = vertexType;
-            if (vertexType == VertexDecl.GU_WEIGHT_32BITF)
-                vertexType = VertexDecl.GU_WEIGHT_8BIT | VertexDecl.GU_TEXTURE_8BIT | VertexDecl.GU_NORMAL_8BIT | VertexDecl.GU_VERTEX_32BITF;
-    
-            if (primitiveType != VertexDecl.GU_TRIANGLE_STRIP && primitiveType != VertexDecl.GU_TRIANGLES)
-                throw new Error('Unhandled primitive type!');
-    
-            const [minVertX, minVertY, minVertZ] = [stream.f32(), stream.f32(), stream.f32()];
-            const [maxVertX, maxVertY, maxVertZ] = [stream.f32(), stream.f32(), stream.f32()];
-    
-            const bufferSize = stream.u32(); // if we parse correctly, this is irrelevant
-            stream.u32(); // unk u32
-            stream.u32(); // unk u32
-            stream.u32(); // unk u32
-            stream.u32(); // unk u32
-            stream.f32(); // unk f32
-            stream.f32();// unk f32
-            stream.f32();// unk f32
-            stream.f32();// unk f32
-            stream.u8(); // unk u8
-    
-            const indices = [];
-            let lastIndex = 0;
-            while (true) {
-                const indexCount = stream.u16();
-                const cullingBehavior = stream.u16();
-                if (indexCount == 0) break;
-                if (primitiveType == VertexDecl.GU_TRIANGLES) {
-                    for (let i = lastIndex; i < lastIndex + indexCount; ++i)
-                        indices.push(i);
-                } else if (primitiveType == VertexDecl.GU_TRIANGLE_STRIP) {
-                    for (let i = lastIndex, j = 0; i < lastIndex + (indexCount - 2); ++i, ++j) {
-                        if (j & 1) indices.push(i, i + 2, i + 1);
-                        else indices.push(i, i + 1, i + 2);
-                    }
-                }
-                lastIndex += indexCount;
-            }
-
-            mesh.indices = indices;
-
-            // Initialize vertex streams
-            for (let i = 0; i < morphCount + 1; ++i)
-                mesh.streams[i] = new VertexData();
-    
-            const start = stream.offset;
-            for (let i = 0; i < vertexCount; ++i) {
-                // Each vertex's morph is stored sequentially.
-                for (let j = 0; j < morphCount + 1; ++j) {                    
-                    const data = mesh.streams[j];
-                    switch (vertexType & VertexDecl.GU_WEIGHT_BITS) {
-                        case VertexDecl.GU_WEIGHT_8BIT: {
-                            if (j == 0) {
-                                let weight = stream.u8();
-                                while (weight < 0x7d) {
-                                    weight += stream.u8();
-                                }
-                            } else stream.forward(0x1);
-                            break;
-                        }
-                        case 0: break;
-                        default: throw new Error('Unhandled weight type!');
-                    }
-    
-                    switch (vertexType & VertexDecl.GU_TEXTURE_BITS) {
-                        case VertexDecl.GU_TEXTURE_8BIT: {
-                            data.texCoords.push([
-                                stream.s8() / 0x7f,
-                                stream.s8() / 0x7f
-                            ]);
-                            break;
-                        }
-                        case VertexDecl.GU_TEXTURE_16BIT: {
-                            stream.align(2, start);
-                            data.texCoords.push([
-                                stream.s16() / 0x7fff,
-                                stream.s16() / 0x7fff
-                            ]);
-                            break;
-                        }
-                        case VertexDecl.GU_TEXTURE_32BITF: {
-                            stream.align(4, start);
-                            data.texCoords.push([ stream.f32(), stream.f32() ]);
-                            break;
-                        }
-                    }
-        
-                    // Not actually parsing these yet
-                    switch (vertexType & VertexDecl.GU_COLOR_BITS) {
-                        case VertexDecl.GU_COLOR_5650:
-                        case VertexDecl.GU_COLOR_5551:
-                        case VertexDecl.GU_COLOR_4444:
-                            stream.align(2, start);
-                            const c = stream.u16();
-                            //data.colors.push(stream.u16());
-                            break;
-                        case VertexDecl.GU_COLOR_8888:
-                            stream.align(4, start);
-                            const c32 = stream.u32();
-                            //data.colors.push(stream.u32());
-                            break;
-                    }
-        
-                    switch (vertexType & VertexDecl.GU_NORMAL_BITS) {
-                        case VertexDecl.GU_NORMAL_8BIT: {
-                            data.normals.push([
-                                stream.s8() / 0x7f,
-                                stream.s8() / 0x7F,
-                                stream.s8() / 0x7F
-                            ]);
-                            break;
-                        }
-                        case VertexDecl.GU_NORMAL_16BIT: {
-                            stream.align(2, start);
-                            data.normals.push([
-                                stream.u16() / 0xFFFF,
-                                stream.u16() / 0xFFFF,
-                                stream.u16() / 0xFFFF,
-                            ]);
-                            break;
-                        }
-                        case VertexDecl.GU_NORMAL_32BITF: {
-                            stream.align(4, start);
-                            data.normals.push([
-                                stream.f32(),
-                                stream.f32(),
-                                stream.f32()
-                            ]);
-                            break;
-                        }
-                    }
-        
-                    switch (vertexType & VertexDecl.GU_VERTEX_BITS) {
-                        case VertexDecl.GU_VERTEX_8BIT: {
-                            data.positions.push([
-                                stream.s8() / 0x7f,
-                                stream.s8() / 0x7f,
-                                stream.s8() / 0x7f
-                            ]);
-                            break;
-                        }
-                        case VertexDecl.GU_VERTEX_16BIT: {
-                            stream.align(2, start);
-                            data.positions.push([
-                                stream.s16() / 0x7fff,
-                                stream.s16() / 0x7fff,
-                                stream.s16() / 0x7fff
-                            ]);
-                            break;
-                        }
-                        case VertexDecl.GU_VERTEX_32BITF: {
-                            stream.align(4, start);
-                            data.positions.push([
-                                stream.f32(),
-                                stream.f32(),
-                                stream.f32()
-                            ]);
-                            break;
-                        }
-                    }            
-                }
-            }
-            const size = stream.offset - start;
-    
-            mesh.name = stream.str();
-    
-            if (debug) {
-                console.log(`[${i}] Name: ${mesh.name}`);
-                console.log(`Primitive Type: ${toPrimitiveString(primitiveType)}`);
-                if (vertexType != originalVertexType)
-                    console.log(`Original Vertex Type: ${toVertexString(originalVertexType)}`);
-                console.log(`Vertex Type: ${toVertexString(vertexType)}`);
-                console.log(`Verts: ${vertexCount}`);
-                console.log(`Morphs: ${morphCount}`);
-                console.log(`Vertex Block Size: 0x${size.toString(16).padStart(8, '0')}\n`);
-            }
-    
-            stream.forward(0x8 * morphCount);
-            model.meshes.push(mesh);
+            meshes.push({
+                primitiveType: stream.u32(),
+                vertexType: stream.u32(),
+                vertexCount: stream.u32(),
+                morphCount: stream.u32(),
+                minVert: [stream.f32(), stream.f32(), stream.f32()],
+                maxVert: [stream.f32(), stream.f32(), stream.f32()],
+                unknown: stream.u8(),
+                buffer: stream.bytearray(),
+                name: stream.str()
+            });
+            stream.forward(0x8 * meshes[i].morphCount);
         }
-    
+
         // No idea what this is, texturing? no idea
         const unknownCount = stream.u32();
         // u32 unk
@@ -329,9 +161,175 @@ class Model {
             model.bones.push(stream.m44());
     
         const skinCount = stream.u32();
-        for (let i = 0; i < skinCount; ++i)
-            model.skins.push(stream.str());
-    
+        for (let i = 0; i < skinCount; ++i) {
+            const path = stream.str();
+            const data = archive.extract(path);
+            if (!data) throw new Error('Can\'t load mesh due to missing skin file: ' + path);
+            model.skins.push(Skin.load(data));
+        }
+
+        for (let i = 0; i < meshCount; ++i) {
+            const data = meshes[i];
+            
+            const mesh = new Mesh();
+
+            model.meshes.push(mesh);
+            mesh.name = data.name;
+            stream = new MemoryInputStream(data.buffer);
+
+            stream.forward(0x20); // Unknown data
+
+            const indices = [];
+            let lastIndex = 0;
+            while (true) {
+                const indexCount = stream.u16();
+                const cullingBehaviour = stream.u16();
+                if (indexCount == 0) break;
+                if (data.primitiveType == VertexDecl.GU_TRIANGLES) {
+                    for (let i = lastIndex; i < lastIndex + indexCount; ++i)
+                        indices.push(i);
+                } else if (data.primitiveType == VertexDecl.GU_TRIANGLE_STRIP) {
+                    for (let i = lastIndex, j = 0; i < lastIndex + (indexCount - 2); ++i, ++j) {
+                        if (j & 1) indices.push(i, i + 2, i + 1);
+                        else indices.push(i, i + 1, i + 2);
+                    }
+                }
+                lastIndex += indexCount;
+            }
+
+            mesh.indices = indices;
+
+            const numVertsPerVertex = data.morphCount + 1;
+
+            // Initialize vertex streams
+            for (let i = 0; i < numVertsPerVertex; ++i)
+                mesh.streams[i] = new VertexData();
+
+            // Skins override vertex types, so we'll use
+            // these as infos.
+            let vertexInfos = [];
+            if (data.vertexType != VertexDecl.GU_WEIGHT_32BITF)
+                vertexInfos.push({ numVerts: data.vertexCount, vertexType: data.vertexType });
+            else vertexInfos = model.skins[i].skins;
+
+            const start = stream.offset;
+            for (const info of vertexInfos) {
+                for (let i = 0; i < info.numVerts; ++i) {
+                    for (let j = 0; j < numVertsPerVertex; ++j) {
+                        const data = mesh.streams[j];
+
+                        const weightCount = getWeightCount(info.vertexType);
+                        switch (info.vertexType & VertexDecl.GU_WEIGHT_BITS) {
+                            case VertexDecl.GU_WEIGHT_8BIT: {
+                                for (let w = 0; w < weightCount; ++w)
+                                    stream.forward(0x1);
+                                break;
+                            }
+                            case 0: break;
+                            default: throw new Error('Unhandled weight type!');
+                        }
+        
+                        switch (info.vertexType & VertexDecl.GU_TEXTURE_BITS) {
+                            case VertexDecl.GU_TEXTURE_8BIT: {
+                                data.texCoords.push([
+                                    stream.s8() / 0x7f,
+                                    stream.s8() / 0x7f
+                                ]);
+                                break;
+                            }
+                            case VertexDecl.GU_TEXTURE_16BIT: {
+                                stream.align(2, start);
+                                data.texCoords.push([
+                                    stream.s16() / 0x7fff,
+                                    stream.s16() / 0x7fff
+                                ]);
+                                break;
+                            }
+                            case VertexDecl.GU_TEXTURE_32BITF: {
+                                stream.align(4, start);
+                                data.texCoords.push([ stream.f32(), stream.f32() ]);
+                                break;
+                            }
+                        }
+            
+                        // Not actually parsing these yet
+                        switch (info.vertexType & VertexDecl.GU_COLOR_BITS) {
+                            case VertexDecl.GU_COLOR_5650:
+                            case VertexDecl.GU_COLOR_5551:
+                            case VertexDecl.GU_COLOR_4444:
+                                stream.align(2, start);
+                                const c = stream.u16();
+                                //data.colors.push(stream.u16());
+                                break;
+                            case VertexDecl.GU_COLOR_8888:
+                                stream.align(4, start);
+                                const c32 = stream.u32();
+                                //data.colors.push(stream.u32());
+                                break;
+                        }
+            
+                        switch (info.vertexType & VertexDecl.GU_NORMAL_BITS) {
+                            case VertexDecl.GU_NORMAL_8BIT: {
+                                data.normals.push([
+                                    stream.s8() / 0x7f,
+                                    stream.s8() / 0x7F,
+                                    stream.s8() / 0x7F
+                                ]);
+                                break;
+                            }
+                            case VertexDecl.GU_NORMAL_16BIT: {
+                                stream.align(2, start);
+                                data.normals.push([
+                                    stream.u16() / 0xFFFF,
+                                    stream.u16() / 0xFFFF,
+                                    stream.u16() / 0xFFFF,
+                                ]);
+                                break;
+                            }
+                            case VertexDecl.GU_NORMAL_32BITF: {
+                                stream.align(4, start);
+                                data.normals.push([
+                                    stream.f32(),
+                                    stream.f32(),
+                                    stream.f32()
+                                ]);
+                                break;
+                            }
+                        }
+            
+                        switch (info.vertexType & VertexDecl.GU_VERTEX_BITS) {
+                            case VertexDecl.GU_VERTEX_8BIT: {
+                                data.positions.push([
+                                    stream.s8() / 0x7f,
+                                    stream.s8() / 0x7f,
+                                    stream.s8() / 0x7f
+                                ]);
+                                break;
+                            }
+                            case VertexDecl.GU_VERTEX_16BIT: {
+                                stream.align(2, start);
+                                data.positions.push([
+                                    stream.s16() / 0x7fff,
+                                    stream.s16() / 0x7fff,
+                                    stream.s16() / 0x7fff
+                                ]);
+                                break;
+                            }
+                            case VertexDecl.GU_VERTEX_32BITF: {
+                                stream.align(4, start);
+                                data.positions.push([
+                                    stream.f32(),
+                                    stream.f32(),
+                                    stream.f32()
+                                ]);
+                                break;
+                            }
+                        } 
+                    }
+                }
+            }
+        }
+
         return model;
     }
 
