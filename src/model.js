@@ -190,6 +190,7 @@ class Model {
                             } else stream.forward(0x1);
                             break;
                         }
+                        case 0: break;
                         default: throw new Error('Unhandled weight type!');
                     }
     
