@@ -349,12 +349,15 @@ class Model {
 
     /**
      * Converts this model into a GLB file.
+     * @param {Skeleton?} skeleton - Optional skeleton for costume meshes that don't reference a skeleton file.
      * @returns {Buffer} Built GLB file binary
      */
-    toGLB = () => {
+    toGLB = skeleton => {
         const glb = new GLB();
         let buffer = Buffer.alloc(0);
         let meshIndex = 0;
+
+        skeleton = (this.skeletons.length != 0) ? this.skeletons[0] : skeleton;
         for (const mesh of this.meshes) {
             const vertexHandle = new MemoryOutputStream(mesh.numVerts * 0xC);
             const texHandle = new MemoryOutputStream(mesh.numVerts * 0x8);
@@ -390,7 +393,7 @@ class Model {
                 }   
             }
 
-            if (this.skeletons.length != 0) {
+            if (skeleton) {
                 const skin = this.skins[meshIndex];
                 const jointStream = new MemoryOutputStream(0x10 * mesh.numVerts);
                 for (const data of skin.skins) {
@@ -421,11 +424,11 @@ class Model {
                     TEXCOORD_0: glb.createAccessor('TEXCOORD', GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC2'),
                     NORMAL: glb.createAccessor('NORMAL', GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC3'),
                     JOINTS_0: (() => {
-                        if (this.skeletons.length == 0) return undefined;
+                        if (!skeleton) return undefined;
                         return glb.createAccessor('JOINTS', GLB.ComponentType.UNSIGNED_INT, mesh.numVerts, 'VEC4');
                     })(),
                     WEIGHTS_0: (() => {
-                        if (this.skeletons.length == 0) return undefined;
+                        if (!skeleton) return undefined;
                         return glb.createAccessor('WEIGHTS', GLB.ComponentType.FLOAT, mesh.numVerts, 'VEC4');
                     })()
                 },
@@ -443,13 +446,13 @@ class Model {
             glb.pushNode({
                 name: mesh.name,
                 mesh: meshIndex,
-                skin: (this.skeletons.length != 0) ? 0 : undefined
+                skin: (skeleton) ? 0 : undefined
             });
 
             meshIndex++;
         }
 
-        if (this.skeletons.length != 0) {
+        if (skeleton) {
             const matrixHandle = new MemoryOutputStream(0x40 * this.bones.length);
             for (const bone of this.bones) 
                 matrixHandle.vector(bone);
@@ -465,7 +468,7 @@ class Model {
             for (let i = 0; i < this.bones.length; ++i)
                 skin.joints.push(start + i);
 
-            const bones = this.skeletons[0].bones;
+            const bones = skeleton.bones;
 
             const getChildren = parent => {
                 const children = [];
