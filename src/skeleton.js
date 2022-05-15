@@ -21,9 +21,10 @@ class Skeleton {
      * @typedef Bone
      * @type {object}
      * @property {number} ID - Unique ID for bone
-     * @property {number} unk1 - Unknown field
+     * @property {number} unknown - Unknown field
      * @property {number} parent - Index of this bone's parent
-     * @property {number[]} children - Indices of first two children
+     * @property {number} firstSibling - Index of first sibling
+     * @property {number} firstChild - Index of first child
      * @property {Transform} transform - Local transform of this bone
      * @property {number} index - Index of this bone in array
      */
@@ -52,12 +53,10 @@ class Skeleton {
         stream.forward(hierachyOffset - stream.offset);
         for (let i = 0; i < boneCount; ++i) {
             skeleton.bones.push({
-                unk1: stream.s16(),
+                unknown: stream.s16(),
                 parent: stream.s16(),
-                // This might be firstSibling, firstChild?
-                // Haven't actually checked, only the parent
-                // is really important
-                children: [stream.s16(), stream.s16()]
+                nextSibling: stream.s16(),
+                firstChild: stream.s16()
             });
         }
         stream.forward(transformOffset - stream.offset);
