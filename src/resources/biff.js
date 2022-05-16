@@ -1,4 +1,4 @@
-const MemoryInputStream = require("./input");
+const MemoryInputStream = require('../streams/input');
 
 /**
  * General resource container that stores a variety of information,

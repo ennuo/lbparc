@@ -1,4 +1,4 @@
-const MemoryInputStream = require('./input');
+const MemoryInputStream = require('../streams/input');
 
 /**
  * Resource containing skeletal data for a skinned mesh.

@@ -88,7 +88,7 @@ class MemoryInputStream {
 
     /**
      * Reads a 32-bit floating point number from the stream.
-     * @returns {import('./types').float} - Floating point read from the stream
+     * @returns {import('../types').float} - Floating point read from the stream
      */
     f32 = () => {
         const value = this.#isLittleEndian ? 
@@ -99,7 +99,7 @@ class MemoryInputStream {
 
     /**
      * Reads a 4x4 matrix from the stream.
-     * @returns {import('./types').m44} - 4x4 matrix read from the stream
+     * @returns {import('../types').m44} - 4x4 matrix read from the stream
      */
     m44 = () => {
         const value = [];

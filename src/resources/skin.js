@@ -1,4 +1,4 @@
-const MemoryInputStream = require('./input');
+const MemoryInputStream = require('../streams/input');
 
 /**
  * Resource that controls which bones influence
@@ -18,12 +18,12 @@ class Skin {
     skins = [];
 
     /**
-     * @type {(import('./types').float)[]} - Texture UV offsets
+     * @type {(import('.').float)[]} - Texture UV offsets
      */
     uvOffsets = [0, 0];
 
     /**
-     * @type {(import('./types').float)[]} - Texture UV scales
+     * @type {(import('.').float)[]} - Texture UV scales
      */
     uvScales = [1, 1];
 

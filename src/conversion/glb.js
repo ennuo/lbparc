@@ -1,4 +1,4 @@
-const MemoryOutputStream = require('./output');
+const MemoryOutputStream = require('../streams/output');
 
 /**
  * Container for 3D scenes and models.
@@ -50,9 +50,9 @@ class GLB {
      * @property {string?} name - Name of this node
      * @property {number?} skin - Index of skin used by this node
      * @property {number?} mesh - Index of mesh used by this node
-     * @property {(import('./types').float)[]?} rotation - Quaternion rotation of object
-     * @property {(import('./types').float)[]?} transation - Relative position of object
-     * @property {(import('./types').float)[]?} scale - Relative scale of object
+     * @property {(import('../types').float)[]?} rotation - Quaternion rotation of object
+     * @property {(import('../types').float)[]?} transation - Relative position of object
+     * @property {(import('../types').float)[]?} scale - Relative scale of object
      */
 
     /**

@@ -1,39 +1,39 @@
 
-const MemoryInputStream = require('./input');
-const { VertexDecl } = require('./flags');
-const { getWeightCount } = require('./utils');
+const MemoryInputStream = require('../streams/input');
+const { VertexDecl } = require('../util/flags');
+const { getWeightCount } = require('../util/utils');
 const Archive = require('./archive');
 const Skin = require('./skin');
 const Texture = require('./texture');
 const Skeleton = require('./skeleton');
-const GLB = require('./glb');
-const MemoryOutputStream = require('./output');
+const GLB = require('../conversion/glb');
+const MemoryOutputStream = require('../streams/output');
 const { basename, extname } = require('path');
 class VertexData {
     /** 
      * Vertex weights, each vertex can contain up to 8
      * weights for each vertex.
-     * @type {(import('./types').float)[][]}
+     * @type {(import('.').float)[][]}
      */
     weights = [];
 
     /**
-     * @type {(import('./types').v3)[]} - Vertex normals
+     * @type {(import('.').v3)[]} - Vertex normals
      */
     normals = [];
 
     /**
-     * @type {(import('./types').v2)[]} - Vertex UVs, only one channel.
+     * @type {(import('.').v2)[]} - Vertex UVs, only one channel.
      */
     texCoords = [];
 
     /**
-     * @type {(import('./types').color)[]} - Vertex colors
+     * @type {(import('.').color)[]} - Vertex colors
      */
     colors = [];
 
     /**
-     * @type {(import('./types').v3)[]} - Vertex positions
+     * @type {(import('.').v3)[]} - Vertex positions
      */
     positions = [];
 }
@@ -61,12 +61,12 @@ class Mesh {
     indices = [];
 
     /**
-     * @type {(import('./types').float)[]} - Texture UV offsets
+     * @type {(import('.').float)[]} - Texture UV offsets
      */
     uvOffsets = [0, 0];
 
     /**
-       * @type {(import('./types').float)[]} - Texture UV scales
+       * @type {(import('.').float)[]} - Texture UV scales
        */
     uvScales = [1, 1];
 
@@ -129,7 +129,7 @@ class Model {
 
     /**
      * Inverse skin pose matrices for bones in this model.
-     * @type {(import('./types').m44)[]}
+     * @type {(import('.').m44)[]}
      */
     bones = [];
 
