@@ -190,8 +190,10 @@ class Model {
         const unknownCount = stream.u32();
         // u32 unk
         // u32 textureIndex
-
-
+        // u32 unk
+        // u32 unk
+        // f32 specularCoefficient
+        // u32 unknown color
         // u32 diffuse color
         // u32 emissive color
         // u32 specular color
@@ -565,8 +567,8 @@ class Model {
                 doubleSided: true,
                 pbrMetallicRoughness: {
                     baseColorTexture: { index: this.materials[i] },
-                    alphaMode: this.textures[this.materials[i]].texture.alpha ? 'BLEND' : 'OPAQUE'
-                }
+                },
+                alphaMode: this.textures[this.materials[i]].texture.alpha ? 'BLEND' : 'OPAQUE'
             }
             const object = this.skins[i] ? this.skins[i] : this.meshes[i];
             material.pbrMetallicRoughness.baseColorTexture.extensions = {
@@ -575,7 +577,7 @@ class Model {
                     scale: object.uvScales
                 }
             }
-            
+
             mesh.primitives[0].material = i;
             glb.materials.push(material);
         }
