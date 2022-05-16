@@ -20,6 +20,11 @@ class MemoryInputStream {
     #offset = 0;
 
     /**
+     * @type {number} Length of this buffer.
+     */
+    length;
+
+    /**
      * Creates a memory input stream from a data source.
      * @param {string|Buffer} input  - Data source
      */
@@ -32,7 +37,10 @@ class MemoryInputStream {
             this.#buffer = readFileSync(input);
         } else if (Buffer.isBuffer(input))
             this.#buffer = input;
+        this.length = this.#buffer.length;
     }
+
+    seek = offset => this.#offset = offset;
 
     /**
      * Skips forward a specified number of bytes.
