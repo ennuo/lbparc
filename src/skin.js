@@ -18,6 +18,16 @@ class Skin {
     skins = [];
 
     /**
+     * @type {(import('./types').float)[]} - Texture UV offsets
+     */
+    uvOffsets = [0, 0];
+
+    /**
+     * @type {(import('./types').float)[]} - Texture UV scales
+     */
+    uvScales = [1, 1];
+
+    /**
      * Loads a skin from a data source.
      * @param {string|Buffer} data - Data to load
      * @returns {Skin} - Parsed skin
@@ -39,9 +49,10 @@ class Skin {
                 bones: [stream.s32(), stream.s32(), stream.s32(), stream.s32()]
             })
         }
-        
-        // I ain't know what this is
-        const [x, y, z, w] = [stream.f32(), stream.f32(), stream.f32(), stream.f32()];
+
+
+        skin.uvOffsets = [stream.f32(), stream.f32()];
+        skin.uvScales = [stream.f32(), stream.f32()];
 
         return skin;
     }

@@ -281,7 +281,7 @@ class Model {
                             case VertexDecl.GU_TEXTURE_16BIT: {
                                 stream.align(2, start);
                                 data.texCoords.push([
-                                    (stream.u16() / 0x7fff),
+                                    (stream.s16() / 0x7fff),
                                     (stream.s16() / 0x7fff)
                                 ]);
                                 break;
@@ -555,6 +555,16 @@ class Model {
                     alphaMode: this.textures[this.materials[i]].texture.alpha ? 'BLEND' : 'OPAQUE'
                 }
             }
+            const skin = this.skins[i];
+            if (skin) {
+                material.pbrMetallicRoughness.baseColorTexture.extensions = {
+                    'KHR_texture_transform': {
+                        offset: skin.uvOffsets,
+                        scale: skin.uvScales
+                    }
+                }
+            }
+
             mesh.primitives[0].material = i;
             glb.materials.push(material);
         }
