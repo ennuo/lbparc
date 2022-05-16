@@ -7,6 +7,7 @@
     "license": "ISC",
     "dependencies": {
         "crc-32": "^1.2.2",
+        "jimp": "^0.16.1",
         "lzo": "^0.4.11"
     }
 }
