@@ -51,10 +51,13 @@ class MemoryInputStream {
     }
 
     /**
-     * Reads a null terminated string from the stream.
+     * Reads either a fixed or null terminated string from the stream.
+     * @param {number?} - Optional length of stream, reads null terminated if not present
      * @returns {string} - String read from the stream
      */
-    str = () => {
+    str = (size) => {
+        if (size)
+            return this.bytes(size).toString('utf-8');
         const value = this.bytes(this.#buffer.indexOf('\0', this.#offset) - this.#offset).toString('utf-8');
         this.#offset++; // Skip past null terminator
         return value;
