@@ -61,6 +61,16 @@ class Mesh {
     indices = [];
 
     /**
+     * @type {(import('./types').float)[]} - Texture UV offsets
+     */
+    uvOffsets = [0, 0];
+
+    /**
+       * @type {(import('./types').float)[]} - Texture UV scales
+       */
+    uvScales = [1, 1];
+
+    /**
      * @returns {number} - Number of verts contained in this model.
      */
     get numVerts() { return this.streams[0]?.positions.length ?? 0 };
@@ -216,7 +226,10 @@ class Model {
             mesh.name = data.name;
             stream = new MemoryInputStream(data.buffer);
 
-            stream.forward(0x20); // Unknown data
+            stream.forward(0xF); // Unknown data
+            mesh.uvOffsets = [stream.f32(), stream.f32()];
+            mesh.uvScales = [stream.f32(), stream.f32()];
+            stream.forward(0x1); // Unknown data
 
             const indices = [];
             let lastIndex = 0;
@@ -555,16 +568,14 @@ class Model {
                     alphaMode: this.textures[this.materials[i]].texture.alpha ? 'BLEND' : 'OPAQUE'
                 }
             }
-            const skin = this.skins[i];
-            if (skin) {
-                material.pbrMetallicRoughness.baseColorTexture.extensions = {
-                    'KHR_texture_transform': {
-                        offset: skin.uvOffsets,
-                        scale: skin.uvScales
-                    }
+            const object = this.skins[i] ? this.skins[i] : this.meshes[i];
+            material.pbrMetallicRoughness.baseColorTexture.extensions = {
+                'KHR_texture_transform': {
+                    offset: object.uvOffsets,
+                    scale: object.uvScales
                 }
             }
-
+            
             mesh.primitives[0].material = i;
             glb.materials.push(material);
         }
