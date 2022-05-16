@@ -10,7 +10,7 @@ class MemoryOutputStream {
     /**
      * @type {number} Size of the underlying buffer.
      */
-    size;
+    length;
 
     /**
      * @type {boolean} Whether or not this stream is reading in little endian.
@@ -28,7 +28,7 @@ class MemoryOutputStream {
      */
     constructor(size) {
         this.buffer = Buffer.alloc(size);
-        this.size = size;
+        this.length = size;
     }
 
     /**

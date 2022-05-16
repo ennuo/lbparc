@@ -4,9 +4,11 @@ const { VertexDecl } = require('./flags');
 const { getWeightCount } = require('./utils');
 const Archive = require('./archive');
 const Skin = require('./skin');
+const Texture = require('./texture');
 const Skeleton = require('./skeleton');
 const GLB = require('./glb');
 const MemoryOutputStream = require('./output');
+const { basename, extname } = require('path');
 class VertexData {
     /** 
      * Vertex weights, each vertex can contain up to 8
@@ -83,7 +85,14 @@ class Mesh {
  */
 class Model {
     /**
-     * @type {string[]} - Textures used by this model.
+     * @typedef TextureInfo
+     * @type {object}
+     * @property {string} name - Name of this texture
+     * @property {Texture} texture - Texture instance
+     */
+
+    /**
+     * @type {TextureInfo[]} - Textures used by this model
      */
     textures = [];
 
@@ -95,8 +104,11 @@ class Model {
     /**
      * Materials used by the meshes of this model,
      * might move this into mesh once I figure out
-     * actually what it does
-     * @type {any[]}
+     * actually what it does.
+     * 
+     * Right now we'll just be using it to store the
+     * texture index for each shape.
+     * @type {number[]}
      */
     materials = [];
 
@@ -129,8 +141,15 @@ class Model {
         const model = new Model();
 
         const textureCount = stream.u32();
-        for (let i = 0; i < textureCount; ++i)
-            model.textures.push(stream.str());
+        for (let i = 0; i < textureCount; ++i) {
+            const path = stream.str();
+            const data = archive.extract(path);
+            if (!data) throw new Error(`${path} failed to extract!`);
+            model.textures.push({
+                name: basename(path, extname(path)),
+                texture: Texture.load(data)
+            });
+        }
         
         const meshCount = stream.u32();
 
@@ -161,8 +180,16 @@ class Model {
         const unknownCount = stream.u32();
         // u32 unk
         // u32 textureIndex
-        for (let i = 0; i < unknownCount; ++i)
-            stream.forward(0x24);
+
+
+        // u32 diffuse color
+        // u32 emissive color
+        // u32 specular color
+        for (let i = 0; i < unknownCount; ++i) {
+            stream.forward(0x4);
+            model.materials.push(stream.u32()); // texture index
+            stream.forward(0x1c);
+        }
     
         const skeletonCount = stream.u32();
         for (let i = 0; i < skeletonCount; ++i)
@@ -254,8 +281,8 @@ class Model {
                             case VertexDecl.GU_TEXTURE_16BIT: {
                                 stream.align(2, start);
                                 data.texCoords.push([
-                                    stream.s16() / 0x7fff,
-                                    stream.s16() / 0x7fff
+                                    (stream.u16() / 0x7fff),
+                                    (stream.s16() / 0x7fff)
                                 ]);
                                 break;
                             }
@@ -369,17 +396,17 @@ class Model {
                 normalHandle.vector(mesh.streams[0].normals[i]);
             }
 
-            glb.createBufferView('POSITION', buffer.length, vertexHandle.size);
+            glb.createBufferView('POSITION', buffer.length, vertexHandle.length);
             buffer = Buffer.concat([buffer, vertexHandle.buffer]);
-            glb.createBufferView('TEXCOORD', buffer.length, texHandle.size);
+            glb.createBufferView('TEXCOORD', buffer.length, texHandle.length);
             buffer = Buffer.concat([buffer, texHandle.buffer]);
-            glb.createBufferView('NORMAL', buffer.length, normalHandle.size);
+            glb.createBufferView('NORMAL', buffer.length, normalHandle.length);
             buffer = Buffer.concat([buffer, normalHandle.buffer]);
 
             const indexHandle = new MemoryOutputStream(mesh.indices.length * 0x2);
             for (const index of mesh.indices)
                 indexHandle.u16(index);
-            glb.createBufferView('INDEX', buffer.length, indexHandle.size);
+            glb.createBufferView('INDEX', buffer.length, indexHandle.length);
             buffer = Buffer.concat([buffer, indexHandle.buffer]);
 
             if (mesh.hasMorphs) {
@@ -388,7 +415,7 @@ class Model {
                     const morphHandle = new MemoryOutputStream(0xC * mesh.numVerts);
                     for (let j = 0; j < mesh.numVerts; ++j)
                         morphHandle.vector(morph.positions[j]);
-                    glb.createBufferView(`MORPHS_${i}`, buffer.length, morphHandle.size);
+                    glb.createBufferView(`MORPHS_${i}`, buffer.length, morphHandle.length);
                     buffer = Buffer.concat([buffer, morphHandle.buffer]);
                 }   
             }
@@ -403,7 +430,7 @@ class Model {
                     for (let i = 0; i < data.numVerts; ++i)
                         for (const b of fixed) jointStream.u32(b);
                 }
-                glb.createBufferView('JOINTS', buffer.length, jointStream.size);
+                glb.createBufferView('JOINTS', buffer.length, jointStream.length);
                 buffer = Buffer.concat([buffer, jointStream.buffer]);
                 
                 const weightStream = new MemoryOutputStream(0x10 * mesh.numVerts);
@@ -413,7 +440,7 @@ class Model {
                         fixed[w] = weight[w];
                     weightStream.vector(fixed);
                 }
-                glb.createBufferView('WEIGHTS', buffer.length, weightStream.size);
+                glb.createBufferView('WEIGHTS', buffer.length, weightStream.length);
                 buffer = Buffer.concat([buffer, weightStream.buffer]);
             }
 
@@ -456,7 +483,7 @@ class Model {
             const matrixHandle = new MemoryOutputStream(0x40 * this.bones.length);
             for (const bone of this.bones) 
                 matrixHandle.vector(bone);
-            glb.createBufferView('MATRIX', buffer.length, matrixHandle.size);
+            glb.createBufferView('MATRIX', buffer.length, matrixHandle.length);
             buffer = Buffer.concat([buffer, matrixHandle.buffer]);
 
             const skin = { 
@@ -495,6 +522,41 @@ class Model {
                     createChildren(bone);
 
             glb.skins = [skin];
+        }
+
+        let index = 0;
+        for (const info of this.textures) {
+            const view = glb.createBufferView('TEXTURE', buffer.length, info.texture.data.length);
+            buffer = Buffer.concat([ buffer, info.texture.data ]);
+
+            const image = {
+                name: info.name,
+                mimeType: 'image/png',
+                bufferView: view
+            }
+            const texture = {
+                name: info.name,
+                source: index,
+            }
+
+            glb.images.push(image);
+            glb.textures.push(texture);
+
+            index++;
+        }
+
+        for (let i = 0; i < this.materials.length; ++i) {
+            const mesh = glb.meshes[i];
+            const material = {
+                name: mesh.name + 'Material',
+                doubleSided: true,
+                pbrMetallicRoughness: {
+                    baseColorTexture: { index: this.materials[i] },
+                    alphaMode: this.textures[this.materials[i]].texture.alpha ? 'BLEND' : 'OPAQUE'
+                }
+            }
+            mesh.primitives[0].material = i;
+            glb.materials.push(material);
         }
 
         glb.setBuffer(buffer);
