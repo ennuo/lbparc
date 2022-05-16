@@ -1,0 +1,1 @@
+node %0\..\unmip.js %1

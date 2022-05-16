@@ -1,0 +1,1 @@
+node %0\..\toggle.js %1
