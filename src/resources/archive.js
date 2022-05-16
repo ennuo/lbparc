@@ -4,7 +4,14 @@ const { XOR } = require('../util/xor');
 const { decompress } = require('lzo');
 
 const crc32 = require('crc-32/crc32');
+const crypto = require('crypto');
 const paths = require(join(__dirname, '../data/paths.json'));
+
+const md5 = data => {
+    const hasher = crypto.createHash('md5');
+    hasher.update(data);
+    return hasher.digest('hex');
+}
 
 /**
  * @typedef ArchiveEntry
@@ -50,7 +57,7 @@ class Archive {
         let entryTable = read(0x10 + (entryCount * 0xC));
         const hash = entryTable.slice(0, 0x10);
         entryTable = entryTable.slice(0x10, entryTable.length);
-
+        
         for (let i = 0; i < entryCount; ++i) {
             let offset = i * 0xC;
             this.entries.push({
@@ -60,15 +67,27 @@ class Archive {
             });
         }
 
+        const SIGCHECK = false;
         for (const entry of this.entries) {
-            const data = XOR(this.#data .slice(entry.offset, entry.offset + entry.size));
-            entry.data = data.slice(0, data.length - 0x19);
-            const info = data.slice(data.length - 0x19, data.length);
-            const realSize = info.readUInt32LE(0);
-            const isCompressed = info[0x4] == 1;
-            const SHA1 = info.slice(0x5, 0x19)
-            if (isCompressed)
-                entry.data = decompress(entry.data, realSize);
+            const data = this.#data.slice(entry.offset, entry.offset + entry.size);
+            const magic = data.slice(0, data.length >= 4 ? 4 : data.length).toString('utf-8');
+            // These resources don't get XOR'd
+            if (!(magic == 'RIFF' || magic == '~SCE')) {
+                XOR(data);
+                entry.data = data.slice(0, data.length - 0x19);
+                const info = data.slice(data.length - 0x19, data.length);
+                const realSize = info.readUInt32LE(0);
+                const isCompressed = info[0x4] == 1;
+                const pathHash = info.slice(0x5, 0x9); // Maybe?
+                const MD5 = info.slice(0x9, 0x19);
+
+                if (SIGCHECK)
+                    if (MD5.toString('hex') != md5(data.slice(0, data.length - 0x10)))
+                        throw new Error('MD5 mismatch!');
+                
+                if (isCompressed)
+                    entry.data = decompress(entry.data, realSize);
+            } else entry.data = data;
         }
     }
 
