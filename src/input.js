@@ -1,3 +1,5 @@
+const { existsSync, readFileSync } = require('fs');
+
 /**
  * Utilities for reading binary data from a data source.
  */
