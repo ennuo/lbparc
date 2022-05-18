@@ -2,11 +2,17 @@ const { XOR } = require('../index');
 const crypto = require('crypto');
 const { decompress, compress } = require('lzo');
 const { readFileSync, writeFileSync, existsSync } = require('fs');
+const { basename } = require('path');
+const hstr = require('crc-32').str;
 
 const md5 = data => {
     const hasher = crypto.createHash('md5');
     hasher.update(data);
     return hasher.digest();
+}
+
+const crc32 = string => {
+    return (~hstr(string)) >>> 0;
 }
 
 const main = () => {
@@ -48,23 +54,22 @@ const main = () => {
         
         writeFileSync(
             path,
-            Buffer.concat([buffer, info.slice(5, 9)])
+            buffer
         );
 
-        console.log(`Done! 4-byte UID has been appended to binary, don't remove it!`);
+        console.log(`Done!`);
         return;
     } else {
-        // UID should be appended to end of data.
-        const UID = data.readUint32LE(data.length - 4);
-        const buffer = data.slice(0, data.length - 4);
+        const buffer = data.slice(0, data.length);
 
         // u32 size
         // bool isCompressed
-        // u32 pathHash(?) 
+        // u32 filenameHash
         // byte[10] md5
         const info = Buffer.alloc(0x19);
         info.writeUint32LE(buffer.length, 0);
         info[0x4] = 1; // Let's just compress it, because why not
+        const UID = crc32(basename(path.toLowerCase()));
         info.writeUint32LE(UID, 0x5);
 
         const output = Buffer.concat([compress(buffer), info]);

@@ -1,5 +1,5 @@
 const { readFileSync, existsSync, mkdirSync, writeFileSync } = require('fs');
-const { join, dirname } = require('path');
+const { join, dirname, basename } = require('path');
 const { XOR } = require('../util/xor');
 const { decompress } = require('lzo');
 
@@ -78,12 +78,18 @@ class Archive {
                 const info = data.slice(data.length - 0x19, data.length);
                 const realSize = info.readUInt32LE(0);
                 const isCompressed = info[0x4] == 1;
-                const pathHash = info.slice(0x5, 0x9); // Maybe?
+                const pathHash = info.slice(0x5, 0x9).readUint32LE(0);
                 const MD5 = info.slice(0x9, 0x19);
 
-                if (SIGCHECK)
+                if (SIGCHECK) {
+                    const path = paths[entry.UID];
+                    if (path) {
+                        if (pathHash.toString('16') != ((~crc32.str(basename(path))) >>> 0).toString('16'))
+                            throw new Error('Filename CRC32 mismatch!');
+                    }
                     if (MD5.toString('hex') != md5(data.slice(0, data.length - 0x10)))
                         throw new Error('MD5 mismatch!');
+                }
                 
                 if (isCompressed)
                     entry.data = decompress(entry.data, realSize);
