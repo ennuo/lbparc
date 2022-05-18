@@ -1,7 +1,9 @@
-const { readFileSync, existsSync, mkdirSync, writeFileSync, createWriteStream, fstat, open, openSync, writeSync, truncateSync, closeSync, appendFileSync } = require('fs');
+const { readFileSync, existsSync, mkdirSync, writeFileSync, openSync, writeSync, truncateSync, closeSync, appendFileSync } = require('fs');
 const { join, dirname, basename } = require('path');
 const { XOR } = require('../util/xor');
 const { decompress, compress } = require('lzo');
+
+const Texture = require('./texture');
 
 const hstr = require('crc-32').str;
 const crypto = require('crypto');
@@ -241,15 +243,29 @@ class Archive {
     /**
      * Unpacks this archive to a folder on disk.
      * @param {string} path - Folder to unpack to
+     * @param {boolean} [convert] - Whether or not to convert assets
+     * @param {boolean} [flip] - Whether or not to flip textures
      */
-    unpack = path => {
+    unpack = (path, convert = false, flip = false) => {
         if (!existsSync(path))
             mkdirSync(path, { recursive: true });
         for (const entry of this.#entries.values()) {
-            const translated = (paths[entry.UID] || custom[entry.UID]) ?? `UNARCx${entry.UID}x${entry.nameHash}`;
+            let translated = (paths[entry.UID] || custom[entry.UID]);
+            let resolved = translated != undefined;
+            if (!resolved) translated = `UNARCx${entry.UID}x${entry.nameHash}`;
+            
+            let data = entry.data;
+            if (convert && (translated.includes('.mip') || (!resolved && entry.data[0] == 0x30))) {
+                data = Texture.load(data, flip).data;
+                if (!resolved)
+                    translated += `.png`;
+                else 
+                    translated = translated.slice(0, translated.length - 4) + '.png'
+            }
+
             if (paths[entry.UID] || custom[entry.UID]) 
                 mkdirSync(join(path, dirname(translated)), { recursive: true })
-            writeFileSync(join(path, String(translated)), entry.data, { recursive: true });
+            writeFileSync(join(path, String(translated)), data, { recursive: true });
         }
     }
 }
