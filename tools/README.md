@@ -4,9 +4,13 @@ Simple scripts for quickly manipulating data, scripts also have batch files for 
 
 ## Scripts
 
+**Pack**
+
+Packs a folder into an archive, it's important to note that the filename of the archive gets hashed in the archive itself, so renaming it will cause the game to mark it as corrupted.
+
 ***Toggle***
 
-Primarily for being used with savedata, de/encrypts savedata, calculates appropriate MD5 signature and de/recompresses data as necessary.
+Primarily for being used with savedata, de/encrypts savedata, calculates appropriate MD5 signature and de/recompresses data as necessary, as with archives, the resource will keep a hash of its filename, so renaming it will cause the game to mark it as corrupted.
 
 ***Unmip***
 
