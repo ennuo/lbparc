@@ -79,7 +79,7 @@ class Texture {
         } else throw new Error('Unhandled BPP!');
 
 
-        if (flip) image.flip(true, true);
+        if (flip) image.flip(false, true);
 
         const texture = new Texture();
 
@@ -104,7 +104,7 @@ class Texture {
         image.resize(dimensions, dimensions);
 
         // PSP expects flipped bitmaps
-        image.flip(true, true);
+        image.flip(false, true);
 
         // Reduce and index colors
         const quant = new RgbQuant();
