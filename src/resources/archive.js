@@ -112,6 +112,16 @@ class Archive {
                     entry.data = decompress(entry.data, realSize);
             } else entry.data = data;
         }
+
+    }
+
+    /**
+     * Patches another archive's data into this one.
+     * @param {Archive} archive 
+     */
+    patch = archive => {
+        for (const entry of archive.#entries.values())
+            this.#entries.set(entry.UID, entry);
     }
 
     /**
