@@ -111,7 +111,6 @@ class Texture {
         quant.sample(image.bitmap.data, image.bitmap.width);
         const palette = quant.palette(true);
         const indexed = quant.reduce(image.bitmap.data, 2);
-        console.log(palette);
 
         texture.writeUint32LE(0x30, 0x0); // Offset of CLUT
         texture.writeUint32LE(dimensions, 0x4);
