@@ -109,3 +109,6 @@ extracted/
 archives/
 output/
 test.js
+
+# User created paths
+src/data/custom.json
