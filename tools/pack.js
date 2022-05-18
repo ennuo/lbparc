@@ -1,7 +1,7 @@
 
 const { existsSync, writeFileSync, statSync, promises: { readdir }, readFileSync } = require('fs');
-const { join, resolve } = require('path');
-const { Archive } = require('../index');
+const { join, resolve, extname } = require('path');
+const { Archive, Texture } = require('../index');
 const paths = require(join(__dirname, '../src/data/paths.json'));
 const custom = require(join(__dirname, '../src/data/custom.json'));
 
@@ -33,10 +33,15 @@ const main = async () => {
     const archive = new Archive();
 
     for await (let file of getFiles(path)) {
-        const data = readFileSync(file);
+        let data = readFileSync(file);
 
         file = file.substring(path.length).replaceAll('\\', '/').toLowerCase();
         if (!file.startsWith('/')) file = '/' + file;
+
+        if (file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.jpeg')) {
+            data = await Texture.import(data);
+            file = file.slice(0, file.length - extname(file).length) + '.mip'
+        }
 
         const entry = archive.add(file, data);
 

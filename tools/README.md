@@ -4,6 +4,10 @@ Simple scripts for quickly manipulating data, scripts also have batch files for 
 
 ## Scripts
 
+**Mip**
+
+Converts a JPEG/PNG to a MIP texture, this however doesn't currently support alpha.
+
 **Pack**
 
 Packs a folder into an archive, it's important to note that the filename of the archive gets hashed in the archive itself, so renaming it will cause the game to mark it as corrupted.
