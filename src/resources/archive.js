@@ -237,7 +237,7 @@ class Archive {
             mkdirSync(path, { recursive: true });
         for (const entry of this.#entries.values()) {
             const translated = (paths[entry.UID] || custom[entry.UID]) ?? `UNARCx${entry.UID}x${entry.nameHash}`;
-            if (paths[entry.UID]) 
+            if (paths[entry.UID] || custom[entry.UID]) 
                 mkdirSync(join(path, dirname(translated)), { recursive: true })
             writeFileSync(join(path, String(translated)), entry.data, { recursive: true });
         }

@@ -1,9 +1,9 @@
 
 const { existsSync, writeFileSync, statSync, promises: { readdir }, readFileSync } = require('fs');
-const { parse, basename, extname, resolve } = require('path');
+const { join, resolve } = require('path');
 const { Archive } = require('../index');
-const paths = require('../src/data/paths.json');
-const custom = require('../src/data/custom.json');
+const paths = require(join(__dirname, '../src/data/paths.json'));
+const custom = require(join(__dirname, '../src/data/custom.json'));
 
 async function* getFiles(dir) {
     const dirents = await readdir(dir, { withFileTypes: true });
@@ -48,7 +48,7 @@ const main = async () => {
     archive.pack(path + '.arc');
 
     // Update custom paths
-    writeFileSync('../src/data/custom.json', JSON.stringify(custom, null, 2));
+    writeFileSync(join(__dirname, '../src/data/custom.json'), JSON.stringify(custom, null, 2));
 }
 
 main();
