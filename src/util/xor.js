@@ -5,10 +5,10 @@ const { join } = require('path');
 const KEYS = readFileSync(join(__dirname, '../data/keys'));
 
 module.exports = {
-    XOR: buffer => {
+    XOR: (buffer, keyOffset = 0) => {
         let offset = 0;
         while (offset < buffer.length) {
-            buffer[offset] ^= KEYS[offset];
+            buffer[offset] ^= KEYS[offset + keyOffset];
             offset++;
         }
         return buffer;

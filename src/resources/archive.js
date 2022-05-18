@@ -3,14 +3,18 @@ const { join, dirname, basename } = require('path');
 const { XOR } = require('../util/xor');
 const { decompress } = require('lzo');
 
-const crc32 = require('crc-32/crc32');
+const hstr = require('crc-32').str;
 const crypto = require('crypto');
 const paths = require(join(__dirname, '../data/paths.json'));
 
 const md5 = data => {
     const hasher = crypto.createHash('md5');
     hasher.update(data);
-    return hasher.digest('hex');
+    return hasher.digest();
+}
+
+const crc32 = string => {
+    return (~hstr(string.toLowerCase())) >>> 0;
 }
 
 /**
@@ -42,21 +46,28 @@ class Archive {
     constructor(path) {
         if (!existsSync(path)) return;
         this.#data = readFileSync(path);
+
         let offset = 0;
-        const read = (size, rounds = 0) => {
-            const buffer = this.#data .slice(offset, offset + size);
+        const read = (size, keyOffset = 0) => {
+            const buffer = this.#data.slice(offset, offset + size);
             offset += size;
-            return XOR(buffer, rounds);
+            return XOR(buffer, keyOffset);
         }
 
         const header = read(0xC);
-        header.readUInt32LE(0); // Unknown
+        const nameHash = header.readUInt32LE(0);
+        if (nameHash != crc32(basename(path)))
+            console.log(`Filename CRC32 hash mismatch! Continuing anyway, but the game will fail to load this!`);
         this.version = header.readUInt32LE(4);
         const entryCount = header.readUInt32LE(8);
-
-        let entryTable = read(0x10 + (entryCount * 0xC));
-        const hash = entryTable.slice(0, 0x10);
-        entryTable = entryTable.slice(0x10, entryTable.length);
+        const headerMD5 = read(0x10);
+        if (headerMD5.toString('hex') != md5(header).toString('hex'))
+            console.log(`Header MD5 hash mismatch! Continuing anyway, but the game will fail to load this!`);
+        
+        const entryTable = read(entryCount * 0xC, 0x10);
+        const entryTableMD5 = read(0x10, Math.ceil((offset - 0xC) / 0x10) * 0x10);
+        if (md5(entryTable).toString('hex') != entryTableMD5.toString('hex'))
+            console.log(`Entry Table MD5 hash mismatch! Continuing anyway, but the game will fail to load this!`);
         
         for (let i = 0; i < entryCount; ++i) {
             let offset = i * 0xC;
@@ -67,7 +78,7 @@ class Archive {
             });
         }
 
-        const SIGCHECK = false;
+        const SIGCHECK = true;
         for (const entry of this.entries) {
             const data = this.#data.slice(entry.offset, entry.offset + entry.size);
             const magic = data.slice(0, data.length >= 4 ? 4 : data.length).toString('utf-8');
@@ -84,10 +95,10 @@ class Archive {
                 if (SIGCHECK) {
                     const path = paths[entry.UID];
                     if (path) {
-                        if (pathHash.toString('16') != ((~crc32.str(basename(path))) >>> 0).toString('16'))
+                        if (pathHash.toString('16') != crc32(basename(path)).toString('16'))
                             throw new Error('Filename CRC32 mismatch!');
                     }
-                    if (MD5.toString('hex') != md5(data.slice(0, data.length - 0x10)))
+                    if (MD5.toString('hex') != md5(data.slice(0, data.length - 0x10)).toString('hex'))
                         throw new Error('MD5 mismatch!');
                 }
                 
@@ -109,7 +120,7 @@ class Archive {
             let fixed = query.replaceAll('\\', '/').toLowerCase();
             if (!fixed.startsWith('/'))
                 fixed = '/' + fixed;
-            query = ((~crc32.str(fixed)) >>> 0);
+            query = crc32(fixed);
         }
 
         // Maybe I should add a UID -> byte[] map
