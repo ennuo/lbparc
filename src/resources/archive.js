@@ -8,12 +8,18 @@ const Texture = require('./texture');
 const hstr = require('crc-32').str;
 const crypto = require('crypto');
 
+const Skeleton = require('./skeleton');
+const Model = require('./model');
+
 // List of UID->Paths for base game files.
 const paths = require(join(__dirname, '../data/paths.json'));
 
 // When a user packs their own files, keep track of their names,
 // since the archive doesn't store them.
 const custom = require(join(__dirname, '../data/custom.json'));
+
+// Global Sackboy skeleton
+const skeleton = Skeleton.load(join(__dirname, '../data/sackboy.skeleton'));
 
 const md5 = data => {
     const hasher = crypto.createHash('md5');
@@ -93,13 +99,15 @@ class Archive {
             // These resources don't get XOR'd
             if (!(magic == 'RIFF' || magic == '~SCE')) {
                 XOR(data);
+
+
                 entry.data = data.slice(0, data.length - 0x19);
                 const info = data.slice(data.length - 0x19, data.length);
                 const realSize = info.readUInt32LE(0);
                 const isCompressed = info[0x4] == 1;
                 entry.nameHash = info.slice(0x5, 0x9).readUint32LE(0);
                 const MD5 = info.slice(0x9, 0x19);
-
+                
                 if (SIGCHECK) {
                     const path = paths[entry.UID] || custom[entry.UID];
                     if (path) {
@@ -114,7 +122,6 @@ class Archive {
                     entry.data = decompress(entry.data, realSize);
             } else entry.data = data;
         }
-
     }
 
     /**
@@ -125,7 +132,7 @@ class Archive {
         for (const entry of archive.#entries.values())
             this.#entries.set(entry.UID, entry);
     }
-
+    
     /**
      * Adds an entry to the archive.
      * @param {string} path - Path of file in archive 
@@ -136,9 +143,11 @@ class Archive {
         path = path.replaceAll('\\', '/').toLowerCase();
         if (!path.startsWith('/')) path = '/' + path;
 
+        const base = basename(path);
+
         // On unpack, if a path was unresolved, we use UNARCxUIDxHASH
-        if (path.startsWith('/unarc')) {
-            const [UID, nameHash] = path.substring(7).split('x').map(x => Number(x));
+        if (base.startsWith('unarcx')) {
+            const [UID, nameHash] = base.substring(7).split('x').map(x => Number(x));
             const entry = {
                 nameHash,
                 UID,
@@ -149,7 +158,7 @@ class Archive {
         }
 
         const UID = crc32(path);
-        const nameHash = crc32(basename(path));
+        const nameHash = crc32(base);
         const entry = {
             nameHash,
             UID,
@@ -261,6 +270,20 @@ class Archive {
                     translated += `.png`;
                 else 
                     translated = translated.slice(0, translated.length - 4) + '.png'
+            }
+
+            if (convert && translated.includes('.model')) {
+                try {
+                    const model = Model.load(data, this);
+                    data = model.toGLB((model.bones.length == skeleton.bones.length) ? skeleton : undefined);
+                    if (!resolved)
+                        translated += `.glb`;
+                    else 
+                        translated = translated.slice(0, translated.length - 6) + '.glb'
+                } catch (ex) {
+                    console.error('An error occurred processing ' + translated + ', you may be missing resources in this archive, or maybe an actual error occurred!');
+                    continue;
+                }
             }
 
             if (paths[entry.UID] || custom[entry.UID]) 

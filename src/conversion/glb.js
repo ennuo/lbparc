@@ -122,9 +122,12 @@ class GLB {
     buffers = [{ byteLength: 0 }];
 
     animations = [];
+    
+    
     textures = [];
+    
     images = [];
-
+    
     /**
      * Creates and returns an empty mesh
      * @param {string} name - Name of mesh

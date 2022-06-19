@@ -142,7 +142,7 @@ class Model {
      * Loads a mesh from a data source.
      * @param {string|Buffer} data - Data to load
      * @param {Archive} archive - Archive to extract skins, textures, and skeletons.
-     * @returns {Mesh} Parsed mesh
+     * @returns {Model} Parsed mesh
      */
     static load = (data, archive) => {
         if (!archive) throw new Error('Can\'t process model without archive!');
